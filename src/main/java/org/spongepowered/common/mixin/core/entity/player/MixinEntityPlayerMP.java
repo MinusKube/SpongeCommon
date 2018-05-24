@@ -61,19 +61,26 @@ import net.minecraft.network.play.server.SPacketBlockChange;
 import net.minecraft.network.play.server.SPacketChat;
 import net.minecraft.network.play.server.SPacketCombatEvent;
 import net.minecraft.network.play.server.SPacketCustomSound;
+import net.minecraft.network.play.server.SPacketEntityEffect;
 import net.minecraft.network.play.server.SPacketEntityProperties;
+import net.minecraft.network.play.server.SPacketEntityStatus;
 import net.minecraft.network.play.server.SPacketResourcePackSend;
+import net.minecraft.network.play.server.SPacketRespawn;
+import net.minecraft.network.play.server.SPacketServerDifficulty;
+import net.minecraft.network.play.server.SPacketSetExperience;
 import net.minecraft.network.play.server.SPacketSetSlot;
 import net.minecraft.network.play.server.SPacketSoundEffect;
 import net.minecraft.network.play.server.SPacketSpawnPosition;
 import net.minecraft.network.play.server.SPacketUpdateHealth;
 import net.minecraft.network.play.server.SPacketWorldBorder;
+import net.minecraft.potion.PotionEffect;
 import net.minecraft.scoreboard.IScoreCriteria;
 import net.minecraft.scoreboard.Score;
 import net.minecraft.scoreboard.ScoreObjective;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerInteractionManager;
+import net.minecraft.server.management.PlayerList;
 import net.minecraft.stats.StatBase;
 import net.minecraft.stats.StatList;
 import net.minecraft.stats.StatisticsManagerServer;
@@ -87,6 +94,7 @@ import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.GameRules;
 import net.minecraft.world.GameType;
 import net.minecraft.world.IInteractionObject;
+import net.minecraft.world.WorldServer;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.advancement.Advancement;
@@ -106,6 +114,7 @@ import org.spongepowered.api.effect.particle.ParticleEffect;
 import org.spongepowered.api.effect.sound.SoundCategory;
 import org.spongepowered.api.effect.sound.SoundType;
 import org.spongepowered.api.effect.sound.record.RecordType;
+import org.spongepowered.api.entity.Transform;
 import org.spongepowered.api.entity.living.player.CooldownTracker;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
@@ -147,6 +156,7 @@ import org.spongepowered.api.util.Tristate;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 import org.spongepowered.api.world.WorldBorder;
+import org.spongepowered.api.world.gamerule.DefaultGameRules;
 import org.spongepowered.api.world.storage.WorldProperties;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -204,6 +214,7 @@ import org.spongepowered.common.util.LocaleCache;
 import org.spongepowered.common.util.NetworkUtil;
 import org.spongepowered.common.util.SkinUtil;
 import org.spongepowered.common.util.VecHelper;
+import org.spongepowered.common.world.WorldManager;
 import org.spongepowered.common.world.border.PlayerOwnBorderListener;
 import org.spongepowered.common.world.storage.SpongePlayerDataHandler;
 
@@ -251,6 +262,8 @@ public abstract class MixinEntityPlayerMP extends MixinEntityPlayer implements P
     @Shadow private void getNextWindowId() { }
 
     @Shadow public abstract void closeContainer();
+
+    @Shadow public abstract WorldServer getServerWorld();
 
     public int newExperience = 0;
     public int newLevel = 0;
@@ -1430,7 +1443,8 @@ public abstract class MixinEntityPlayerMP extends MixinEntityPlayer implements P
         }
 
         // Simulate respawn to see skin active
-        Location<World> loc = this.getLocation();
+        this.fakeRespawn();
+        /*Location<World> loc = this.getLocation();
         Vector3d rotation = this.getRotation();
 
         WorldProperties other = null;
@@ -1448,7 +1462,47 @@ public abstract class MixinEntityPlayerMP extends MixinEntityPlayer implements P
         if (other != null) {
             this.setLocation(Sponge.getServer().getWorld(other.getUniqueId()).get().getSpawnLocation());
             this.setLocationAndRotation(loc, rotation);
+        }*/
+    }
+
+    // Adapted from MixinPlayerList#recreatePlayerEntity
+    // We want to respawn the player *only* on tts own client. Therefore,
+    // we skip most of the logic that's performed for a normal respawn.
+    private void fakeRespawn() {
+        WorldServer worldServer = this.getServerWorld();
+        final int dimensionId = WorldManager.getClientDimensionId((EntityPlayerMP) (Object) this, worldServer);
+        PlayerList playerList = SpongeImpl.getServer().getPlayerList();
+        Transform<World> transform = this.getTransform();
+
+        this.connection.sendPacket(new SPacketRespawn(dimensionId, worldServer.getDifficulty(), worldServer
+                .getWorldInfo().getTerrainType(), this.interactionManager.getGameType()));
+        this.connection.sendPacket(new SPacketServerDifficulty(worldServer.getDifficulty(), worldServer.getWorldInfo().isDifficultyLocked()));
+        this.connection.setPlayerLocation(transform.getLocation().getX(), transform.getLocation().getY(), transform.getLocation().getZ(),
+                (float) transform.getYaw(), (float) transform.getPitch());
+
+        final BlockPos spawnLocation = worldServer.getSpawnPoint();
+        this.connection.sendPacket(new SPacketSpawnPosition(spawnLocation));
+        this.connection.sendPacket(new SPacketSetExperience(this.experience, this.experienceTotal,
+                this.experienceLevel));
+        playerList.updateTimeAndWeatherForPlayer((EntityPlayerMP) (Object) this, worldServer);
+        playerList.updatePermissionLevel((EntityPlayerMP) (Object) this);
+        playerList.syncPlayerInventory((EntityPlayerMP) (Object) this);
+        //worldServer.getPlayerChunkMap().addPlayer(this);
+        //org.spongepowered.api.entity.Entity spongeEntity = (org.spongepowered.api.entity.Entity) this;
+        //((org.spongepowered.api.world.World) worldServer).spawnEntity(spongeEntity);
+        //this.playerEntityList.add(this);
+        //this.uuidToPlayerMap.put(this.getUniqueID(), this);
+        //this.addSelfToInternalCraftingInventory();
+
+        // Update reducedDebugInfo game rule
+        this.connection.sendPacket(new SPacketEntityStatus((EntityPlayerMP) (Object) this,
+                worldServer.getGameRules().getBoolean(DefaultGameRules.REDUCED_DEBUG_INFO) ? (byte) 22 : 23));
+
+        for (Object potioneffect : this.getActivePotionEffects()) {
+            this.connection.sendPacket(new SPacketEntityEffect(this.getEntityId(), (PotionEffect) potioneffect));
         }
+        this.refreshScaledHealth();
+
     }
 
     private void updateSkinOthers() {
