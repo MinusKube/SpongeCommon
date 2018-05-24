@@ -73,6 +73,7 @@ import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.data.persistence.NbtTranslator;
 import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
 import org.spongepowered.common.interfaces.entity.IMixinEntity;
+import org.spongepowered.common.interfaces.entity.IMixinSkinnable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +91,7 @@ import javax.annotation.Nullable;
  *
  * Hostile mobs don't attack the human, should this be default behaviour?
  */
-public class EntityHuman extends EntityCreature implements TeamMember, IRangedAttackMob {
+public class EntityHuman extends EntityCreature implements TeamMember, IRangedAttackMob, IMixinSkinnable {
 
     // According to http://wiki.vg/Mojang_API#UUID_-.3E_Profile_.2B_Skin.2FCape
     // you can access this data once per minute, lets cache for 2 minutes
@@ -359,7 +360,8 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
         }
     }
 
-    public boolean setSkinProperty(ProfileProperty skin) {
+    @Override
+    public boolean setSkin(ProfileProperty skin) {
         if (skin.equals(this.skinProperty)) {
             return true;
         }
@@ -373,10 +375,12 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
     }
 
     @Nullable
+    @Override
     public ProfileProperty getSkin() {
         return this.skinProperty;
     }
 
+    @Override
     public DataTransactionResult removeSkin() {
         if (this.skinProperty == null) {
             return DataTransactionResult.successNoData();

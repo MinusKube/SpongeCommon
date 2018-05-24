@@ -30,10 +30,13 @@ import net.minecraft.entity.ai.attributes.IAttributeInstance;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
+import org.spongepowered.api.data.DataTransactionResult;
 import org.spongepowered.api.entity.living.player.User;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.api.scoreboard.Scoreboard;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.channel.MessageChannel;
+import org.spongepowered.common.interfaces.entity.IMixinSkinnable;
 import org.spongepowered.common.interfaces.world.IMixinWorldServer;
 import org.spongepowered.common.world.border.PlayerOwnBorderListener;
 
@@ -41,7 +44,7 @@ import java.util.Collection;
 
 import javax.annotation.Nullable;
 
-public interface IMixinEntityPlayerMP extends IMixinEntityPlayer {
+public interface IMixinEntityPlayerMP extends IMixinEntityPlayer, IMixinSkinnable {
 
     default boolean usesCustomClient() {
         return false;

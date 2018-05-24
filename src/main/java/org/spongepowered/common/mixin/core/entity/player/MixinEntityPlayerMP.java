@@ -30,6 +30,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 import com.flowpowered.math.vector.Vector3d;
 import com.flowpowered.math.vector.Vector3i;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import net.minecraft.advancements.PlayerAdvancements;
 import net.minecraft.block.state.IBlockState;
@@ -93,11 +94,13 @@ import org.spongepowered.api.advancement.AdvancementProgress;
 import org.spongepowered.api.advancement.AdvancementTree;
 import org.spongepowered.api.block.BlockState;
 import org.spongepowered.api.command.CommandSource;
+import org.spongepowered.api.data.DataTransactionResult;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.DataManipulator;
 import org.spongepowered.api.data.manipulator.mutable.entity.GameModeData;
 import org.spongepowered.api.data.manipulator.mutable.entity.JoinData;
 import org.spongepowered.api.data.type.SkinPart;
+import org.spongepowered.api.data.value.immutable.ImmutableValue;
 import org.spongepowered.api.data.value.mutable.Value;
 import org.spongepowered.api.effect.particle.ParticleEffect;
 import org.spongepowered.api.effect.sound.SoundCategory;
@@ -108,6 +111,7 @@ import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.entity.living.player.gamemode.GameMode;
 import org.spongepowered.api.entity.living.player.tab.TabList;
+import org.spongepowered.api.entity.living.player.tab.TabListEntry;
 import org.spongepowered.api.event.CauseStackManager.StackFrame;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.Cause;
@@ -128,6 +132,7 @@ import org.spongepowered.api.item.inventory.transaction.SlotTransaction;
 import org.spongepowered.api.item.inventory.type.CarriedInventory;
 import org.spongepowered.api.network.PlayerConnection;
 import org.spongepowered.api.profile.GameProfile;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.api.resourcepack.ResourcePack;
 import org.spongepowered.api.scoreboard.Scoreboard;
 import org.spongepowered.api.service.user.UserStorageService;
@@ -159,6 +164,7 @@ import org.spongepowered.common.data.manipulator.mutable.entity.SpongeGameModeDa
 import org.spongepowered.common.data.manipulator.mutable.entity.SpongeJoinData;
 import org.spongepowered.common.data.util.DataConstants;
 import org.spongepowered.common.data.util.NbtDataUtil;
+import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
 import org.spongepowered.common.data.value.mutable.SpongeValue;
 import org.spongepowered.common.effect.particle.SpongeParticleEffect;
 import org.spongepowered.common.effect.particle.SpongeParticleHelper;
@@ -1374,5 +1380,79 @@ public abstract class MixinEntityPlayerMP extends MixinEntityPlayer implements P
             return villager.getDisplayName();
         }
         return new TextComponentString(SpongeTexts.toLegacy(this.displayName));
+    }
+
+    @Override
+    @Nullable
+    public ProfileProperty getSkin() {
+        return Iterables.getFirst(this.getProfile().getPropertyMap().get(ProfileProperty.TEXTURES), null);
+    }
+
+    @Override
+    public boolean setSkin(ProfileProperty skin) {
+        Collection<ProfileProperty> props = this.getProfile().getPropertyMap().get(ProfileProperty.TEXTURES);
+        props.clear();
+        props.add(skin);
+
+        this.updateSkin();
+        return true;
+    }
+
+    @Override
+    public DataTransactionResult removeSkin() {
+        if (!this.getProfile().getPropertyMap().containsKey(ProfileProperty.TEXTURES)) {
+            return DataTransactionResult.successNoData();
+        }
+        Collection<ProfileProperty> skin = this.getProfile().getPropertyMap().removeAll("textures");
+        ImmutableValue<?> oldValue = new ImmutableSpongeValue<>(Keys.SKIN, skin.iterator().next());
+        this.updateSkin();
+
+        return DataTransactionResult.builder().result(DataTransactionResult.Type.SUCCESS).replace(oldValue).build();
+    }
+
+    private void updateSkin() {
+        this.updateSkinSelf();
+        this.updateSkinOthers();
+    }
+
+    private void updateSkinSelf() {
+        this.getTabList().removeEntry(this.getUniqueId());
+        this.getTabList().addEntry(TabListEntry.builder()
+                .displayName(this.getDisplayNameData().displayName().get())
+                .latency(this.getConnection().getLatency())
+                .list(this.getTabList())
+                .gameMode(this.getGameModeData().type().get())
+                .profile(this.getProfile())
+                .build());
+
+        if (this.isDead) {
+            return;
+        }
+
+        // Simulate respawn to see skin active
+        Location<World> loc = this.getLocation();
+        Vector3d rotation = this.getRotation();
+
+        WorldProperties other = null;
+        for (WorldProperties w : Sponge.getServer().getAllWorldProperties()) {
+            if (other != null) {
+                break;
+            }
+
+            if (!w.getUniqueId().equals(this.getWorld().getUniqueId())) {
+                Sponge.getServer().loadWorld(w.getUniqueId());
+                other = w;
+            }
+        }
+
+        if (other != null) {
+            this.setLocation(Sponge.getServer().getWorld(other.getUniqueId()).get().getSpawnLocation());
+            this.setLocationAndRotation(loc, rotation);
+        }
+    }
+
+    private void updateSkinOthers() {
+        this.offer(Keys.VANISH, true);
+        Sponge.getScheduler().createTaskBuilder().execute(() -> this.offer(Keys.VANISH, false)).delayTicks(1).submit(SpongeImpl.getPlugin());
     }
 }

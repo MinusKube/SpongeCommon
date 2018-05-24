@@ -24,6 +24,7 @@
  */
 package org.spongepowered.common.data.processor.data.entity;
 
+import net.minecraft.entity.player.EntityPlayerMP;
 import org.spongepowered.api.data.DataTransactionResult;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.immutable.entity.ImmutableSkinData;
@@ -31,29 +32,34 @@ import org.spongepowered.api.data.manipulator.mutable.entity.SkinData;
 import org.spongepowered.api.data.value.ValueContainer;
 import org.spongepowered.api.data.value.immutable.ImmutableValue;
 import org.spongepowered.api.data.value.mutable.Value;
+import org.spongepowered.api.entity.living.Humanoid;
 import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.common.data.manipulator.mutable.entity.SpongeSkinData;
 import org.spongepowered.common.data.processor.common.AbstractEntitySingleDataProcessor;
+import org.spongepowered.common.data.processor.common.AbstractSingleDataSingleTargetProcessor;
 import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
 import org.spongepowered.common.data.value.mutable.SpongeValue;
 import org.spongepowered.common.entity.living.human.EntityHuman;
+import org.spongepowered.common.interfaces.entity.IMixinSkinnable;
+import org.spongepowered.common.interfaces.entity.player.IMixinEntityPlayerMP;
 
 import java.util.Optional;
 import java.util.UUID;
 
 public class SkinDataProcessor extends
-        AbstractEntitySingleDataProcessor<EntityHuman, ProfileProperty, Value<ProfileProperty>, SkinData, ImmutableSkinData> {
+        AbstractSingleDataSingleTargetProcessor<IMixinSkinnable, ProfileProperty, Value<ProfileProperty>, SkinData, ImmutableSkinData> {
 
     public SkinDataProcessor() {
-        super(EntityHuman.class, Keys.SKIN);
+        super(Keys.SKIN, IMixinSkinnable.class);
     }
 
     @Override
     public DataTransactionResult removeFrom(ValueContainer<?> container) {
-        if (!(container instanceof EntityHuman)) {
-            return DataTransactionResult.failNoData();
+        if (container instanceof IMixinSkinnable) {
+            return ((IMixinSkinnable) container).removeSkin();
         }
-        return ((EntityHuman) container).removeSkin();
+        return DataTransactionResult.failNoData();
+
     }
 
     @Override
@@ -62,12 +68,12 @@ public class SkinDataProcessor extends
     }
 
     @Override
-    protected boolean set(EntityHuman entity, ProfileProperty value) {
-        return entity.setSkinProperty(value);
+    protected boolean set(IMixinSkinnable entity, ProfileProperty value) {
+        return entity.setSkin(value);
     }
 
     @Override
-    protected Optional<ProfileProperty> getVal(EntityHuman entity) {
+    protected Optional<ProfileProperty> getVal(IMixinSkinnable entity) {
         return Optional.ofNullable(entity.getSkin());
     }
 
