@@ -31,6 +31,7 @@ import org.spongepowered.api.data.manipulator.mutable.entity.SkinData;
 import org.spongepowered.api.data.value.ValueContainer;
 import org.spongepowered.api.data.value.immutable.ImmutableValue;
 import org.spongepowered.api.data.value.mutable.Value;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.common.data.manipulator.mutable.entity.SpongeSkinData;
 import org.spongepowered.common.data.processor.common.AbstractEntitySingleDataProcessor;
 import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
@@ -41,10 +42,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class SkinDataProcessor extends
-        AbstractEntitySingleDataProcessor<EntityHuman, UUID, Value<UUID>, SkinData, ImmutableSkinData> {
+        AbstractEntitySingleDataProcessor<EntityHuman, ProfileProperty, Value<ProfileProperty>, SkinData, ImmutableSkinData> {
 
     public SkinDataProcessor() {
-        super(EntityHuman.class, Keys.SKIN_UNIQUE_ID);
+        super(EntityHuman.class, Keys.SKIN);
     }
 
     @Override
@@ -56,23 +57,23 @@ public class SkinDataProcessor extends
     }
 
     @Override
-    protected Value<UUID> constructValue(UUID actualValue) {
-        return new SpongeValue<>(Keys.SKIN_UNIQUE_ID, actualValue);
+    protected Value<ProfileProperty> constructValue(ProfileProperty actualValue) {
+        return new SpongeValue<>(Keys.SKIN, actualValue);
     }
 
     @Override
-    protected boolean set(EntityHuman entity, UUID value) {
-        return entity.setSkinUuid(value);
+    protected boolean set(EntityHuman entity, ProfileProperty value) {
+        return entity.setSkinProperty(value);
     }
 
     @Override
-    protected Optional<UUID> getVal(EntityHuman entity) {
-        return Optional.ofNullable(entity.getSkinUuid());
+    protected Optional<ProfileProperty> getVal(EntityHuman entity) {
+        return Optional.ofNullable(entity.getSkin());
     }
 
     @Override
-    protected ImmutableValue<UUID> constructImmutableValue(UUID value) {
-        return new ImmutableSpongeValue<UUID>(Keys.SKIN_UNIQUE_ID, value);
+    protected ImmutableValue<ProfileProperty> constructImmutableValue(ProfileProperty value) {
+        return new ImmutableSpongeValue<ProfileProperty>(Keys.SKIN, value);
     }
 
     @Override

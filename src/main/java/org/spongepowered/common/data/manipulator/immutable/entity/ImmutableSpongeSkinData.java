@@ -24,28 +24,30 @@
  */
 package org.spongepowered.common.data.manipulator.immutable.entity;
 
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.data.DataContainer;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.immutable.entity.ImmutableSkinData;
 import org.spongepowered.api.data.manipulator.mutable.entity.SkinData;
 import org.spongepowered.api.data.value.immutable.ImmutableValue;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.common.data.manipulator.immutable.common.AbstractImmutableSingleData;
 import org.spongepowered.common.data.manipulator.mutable.entity.SpongeSkinData;
 import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
 
 import java.util.UUID;
 
-public class ImmutableSpongeSkinData extends AbstractImmutableSingleData<UUID, ImmutableSkinData, SkinData> implements ImmutableSkinData {
+public class ImmutableSpongeSkinData extends AbstractImmutableSingleData<ProfileProperty, ImmutableSkinData, SkinData> implements ImmutableSkinData {
 
-    private final ImmutableSpongeValue<UUID> skinValue;
+    private final ImmutableSpongeValue<ProfileProperty> skinValue;
 
     public ImmutableSpongeSkinData() {
-        this(new UUID(0, 0));
+        this(Sponge.getServer().getGameProfileManager().createProfileProperty(ProfileProperty.TEXTURES, "", null));
     }
 
-    public ImmutableSpongeSkinData(UUID value) {
-        super(ImmutableSkinData.class, value, Keys.SKIN_UNIQUE_ID);
-        this.skinValue = new ImmutableSpongeValue<>(Keys.SKIN_UNIQUE_ID, value);
+    public ImmutableSpongeSkinData(ProfileProperty value) {
+        super(ImmutableSkinData.class, value, Keys.SKIN);
+        this.skinValue = new ImmutableSpongeValue<>(Keys.SKIN, value);
     }
 
     @Override
@@ -56,17 +58,17 @@ public class ImmutableSpongeSkinData extends AbstractImmutableSingleData<UUID, I
     @Override
     public DataContainer toContainer() {
         return super.toContainer()
-            .set(Keys.SKIN_UNIQUE_ID.getQuery(), this.value.toString());
+            .set(Keys.SKIN.getQuery(), this.getValue());
     }
 
     @Override
-    public ImmutableValue<UUID> skinUniqueId() {
+    public ImmutableValue<ProfileProperty> skin() {
         return this.skinValue;
     }
 
     @Override
     protected ImmutableValue<?> getValueGetter() {
-        return skinUniqueId();
+        return skin();
     }
 
 }

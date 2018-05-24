@@ -24,11 +24,13 @@
  */
 package org.spongepowered.common.data.manipulator.mutable.entity;
 
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.data.DataContainer;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.immutable.entity.ImmutableSkinData;
 import org.spongepowered.api.data.manipulator.mutable.entity.SkinData;
 import org.spongepowered.api.data.value.mutable.Value;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.common.data.manipulator.immutable.entity.ImmutableSpongeSkinData;
 import org.spongepowered.common.data.manipulator.mutable.common.AbstractSingleData;
 import org.spongepowered.common.data.util.DataQueries;
@@ -36,14 +38,14 @@ import org.spongepowered.common.data.value.mutable.SpongeValue;
 
 import java.util.UUID;
 
-public class SpongeSkinData extends AbstractSingleData<UUID, SkinData, ImmutableSkinData> implements SkinData {
+public class SpongeSkinData extends AbstractSingleData<ProfileProperty, SkinData, ImmutableSkinData> implements SkinData {
 
     public SpongeSkinData() {
-        this(new UUID(0, 0));
+        this(Sponge.getServer().getGameProfileManager().createProfileProperty(ProfileProperty.TEXTURES, "", null));
     }
 
-    public SpongeSkinData(UUID skinUuid) {
-        super(SkinData.class, skinUuid, Keys.SKIN_UNIQUE_ID);
+    public SpongeSkinData(ProfileProperty skin) {
+        super(SkinData.class, skin, Keys.SKIN);
     }
 
     @Override
@@ -59,17 +61,17 @@ public class SpongeSkinData extends AbstractSingleData<UUID, SkinData, Immutable
     @Override
     public DataContainer toContainer() {
         return super.toContainer()
-            .set(DataQueries.SKIN_UUID, getValue());
+            .set(DataQueries.SKIN, getValue());
     }
 
     @Override
-    public Value<UUID> skinUniqueId() {
-        return new SpongeValue<>(Keys.SKIN_UNIQUE_ID, getValue());
+    public Value<ProfileProperty> skin() {
+        return new SpongeValue<>(Keys.SKIN, getValue());
     }
 
     @Override
     protected Value<?> getValueGetter() {
-        return skinUniqueId();
+        return skin();
     }
 
 }

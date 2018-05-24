@@ -32,8 +32,10 @@ import static net.minecraft.entity.player.EntityPlayer.PLAYER_SCORE;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.mojang.authlib.GameProfile;
+import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.properties.PropertyMap;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.Entity;
@@ -59,12 +61,16 @@ import net.minecraft.util.SoundEvent;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.GameType;
 import net.minecraft.world.World;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.data.DataTransactionResult;
 import org.spongepowered.api.data.key.Keys;
+import org.spongepowered.api.data.persistence.DataBuilder;
 import org.spongepowered.api.data.value.immutable.ImmutableValue;
+import org.spongepowered.api.profile.property.ProfileProperty;
 import org.spongepowered.api.scoreboard.TeamMember;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.common.SpongeImpl;
+import org.spongepowered.common.data.persistence.NbtTranslator;
 import org.spongepowered.common.data.value.immutable.ImmutableSpongeValue;
 import org.spongepowered.common.interfaces.entity.IMixinEntity;
 
@@ -88,7 +94,7 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
 
     // According to http://wiki.vg/Mojang_API#UUID_-.3E_Profile_.2B_Skin.2FCape
     // you can access this data once per minute, lets cache for 2 minutes
-    private static final LoadingCache<UUID, PropertyMap> PROPERTIES_CACHE = CacheBuilder.newBuilder().expireAfterWrite(2, TimeUnit.MINUTES)
+    /*private static final LoadingCache<UUID, PropertyMap> PROPERTIES_CACHE = CacheBuilder.newBuilder().expireAfterWrite(2, TimeUnit.MINUTES)
             .build(new CacheLoader<UUID, PropertyMap>() {
 
                 @Override
@@ -96,13 +102,13 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
                     return SpongeImpl.getServer().getMinecraftSessionService().fillProfileProperties(new GameProfile(uuid, ""), true)
                             .getProperties();
                 }
-            });
+            });*/
 
     // A queue of packets waiting to send to players tracking this human
     private final Map<UUID, List<Packet<?>[]>> playerPacketMap = Maps.newHashMap();
 
     private GameProfile fakeProfile;
-    @Nullable private UUID skinUuid;
+    @Nullable private ProfileProperty skinProperty;
     private boolean aiDisabled = false, leftHanded = false;
 
     public EntityHuman(World worldIn) {
@@ -172,20 +178,25 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
     @Override
     public void readEntityFromNBT(NBTTagCompound tagCompund) {
         super.readEntityFromNBT(tagCompund);
-        String skinUuidString = ((IMixinEntity) this).getSpongeData().getString("skinUuid");
-        if (!skinUuidString.isEmpty()) {
-            this.updateFakeProfileWithSkin(UUID.fromString(skinUuidString));
+        if (!((IMixinEntity) this).getSpongeData().hasKey("skinProperty")) {
+            return;
         }
+
+        NBTTagCompound skinData = ((IMixinEntity) this).getSpongeData().getCompoundTag("skinProperty");
+        DataBuilder<ProfileProperty> builder = Sponge.getDataManager().getBuilder(ProfileProperty.class).get();
+
+        ProfileProperty skinProperty = builder.build(NbtTranslator.getInstance().translate(skinData)).get();
+        this.updateFakeProfileWithSkin(skinProperty);
     }
 
     @Override
     public void writeEntityToNBT(NBTTagCompound tagCompound) {
         super.writeEntityToNBT(tagCompound);
         NBTTagCompound spongeData = ((IMixinEntity) this).getSpongeData();
-        if (this.skinUuid != null) {
-            spongeData.setString("skinUuid", this.skinUuid.toString());
+        if (this.skinProperty != null) {
+            spongeData.setTag("skinProperty", NbtTranslator.getInstance().translateData(this.skinProperty.toContainer()));
         } else {
-            spongeData.removeTag("skinUuid");
+            spongeData.removeTag("skinProperty");
         }
     }
 
@@ -329,13 +340,9 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
         this.fakeProfile.getProperties().putAll(props);
     }
 
-    private boolean updateFakeProfileWithSkin(UUID skin) {
-        PropertyMap properties = PROPERTIES_CACHE.getUnchecked(skin);
-        if (properties.isEmpty()) {
-            return false;
-        }
-        this.fakeProfile.getProperties().replaceValues("textures", properties.get("textures"));
-        this.skinUuid = skin;
+    private boolean updateFakeProfileWithSkin(ProfileProperty skin) {
+        this.fakeProfile.getProperties().replaceValues("textures", ImmutableList.of((Property) skin));
+        this.skinProperty = skin;
         return true;
     }
 
@@ -352,12 +359,8 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
         }
     }
 
-    public boolean setSkinUuid(UUID skin) {
-        if (!SpongeImpl.getServer().isServerInOnlineMode()) {
-            // Skins only work when online-mode = true
-            return false;
-        }
-        if (skin.equals(this.skinUuid)) {
+    public boolean setSkinProperty(ProfileProperty skin) {
+        if (skin.equals(this.skinProperty)) {
             return true;
         }
         if (!updateFakeProfileWithSkin(skin)) {
@@ -370,17 +373,17 @@ public class EntityHuman extends EntityCreature implements TeamMember, IRangedAt
     }
 
     @Nullable
-    public UUID getSkinUuid() {
-        return this.skinUuid;
+    public ProfileProperty getSkin() {
+        return this.skinProperty;
     }
 
     public DataTransactionResult removeSkin() {
-        if (this.skinUuid == null) {
+        if (this.skinProperty == null) {
             return DataTransactionResult.successNoData();
         }
         this.fakeProfile.getProperties().removeAll("textures");
-        ImmutableValue<?> oldValue = new ImmutableSpongeValue<>(Keys.SKIN_UNIQUE_ID, this.skinUuid);
-        this.skinUuid = null;
+        ImmutableValue<?> oldValue = new ImmutableSpongeValue<>(Keys.SKIN, this.skinProperty);
+        this.skinProperty = null;
         if (this.isAliveAndInWorld()) {
             this.respawnOnClient();
         }
